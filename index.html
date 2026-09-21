@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MediaLab — Editor de fotos y vídeos</title>
+<meta name="description" content="Edita fotos y vídeos directamente en tu navegador: recorta, une, aplica filtros y crea collages." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <span class="brand-name">MediaLab</span>
+    </div>
+    <p class="brand-tag">Edición de fotos y vídeos en tu navegador — nada se sube a ningún servidor</p>
+    <button id="themeToggle" class="icon-btn" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
+  </header>
+
+  <main class="main">
+
+    <!-- Upload zone -->
+    <section class="panel upload-panel" id="uploadPanel">
+      <div class="dropzone" id="dropzone">
+        <div class="dropzone-icon">＋</div>
+        <h2>Arrastra tus fotos o vídeos aquí</h2>
+        <p>o</p>
+        <button class="btn btn-primary" id="pickFilesBtn">Seleccionar archivos</button>
+        <input type="file" id="fileInput" accept="image/*,video/*" multiple hidden />
+        <p class="hint">JPG, PNG, WEBP, MP4, WEBM, MOV… Todo el procesado ocurre en tu propio dispositivo.</p>
+      </div>
+    </section>
+
+    <!-- Library -->
+    <section class="panel library-panel" id="libraryPanel" hidden>
+      <div class="library-header">
+        <h2>Tu galería <span class="count-badge" id="itemCount">0</span></h2>
+        <div class="library-actions">
+          <button class="btn btn-ghost" id="addMoreBtn">＋ Añadir más</button>
+          <button class="btn btn-secondary" id="collageBtn" disabled>🖼️ Crear collage</button>
+          <button class="btn btn-secondary" id="mergeBtn" disabled>🎞️ Unir vídeos</button>
+          <button class="btn btn-danger-ghost" id="deleteSelectedBtn" disabled>Eliminar selección</button>
+        </div>
+      </div>
+      <div class="grid" id="libraryGrid"></div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p>Hecho con Canvas API y ffmpeg.wasm · Procesamiento 100% local en tu navegador</p>
+  </footer>
+</div>
+
+<!-- ===== Image editor modal ===== -->
+<div class="modal-overlay" id="imageEditorModal" hidden>
+  <div class="modal modal-editor">
+    <div class="modal-header">
+      <h3>Editar foto</h3>
+      <button class="icon-btn" id="imageEditorClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-stage">
+        <div class="stage-wrap" id="imgStageWrap">
+          <div class="frame" id="imgFrame">
+            <canvas id="imgCanvas"></canvas>
+            <div class="crop-overlay" id="imgCropOverlay">
+              <div class="crop-rect" id="imgCropRect">
+                <div class="crop-grid"></div>
+                <div class="crop-handle handle-nw" data-handle="nw"></div>
+                <div class="crop-handle handle-n"  data-handle="n"></div>
+                <div class="crop-handle handle-ne" data-handle="ne"></div>
+                <div class="crop-handle handle-e"  data-handle="e"></div>
+                <div class="crop-handle handle-se" data-handle="se"></div>
+                <div class="crop-handle handle-s"  data-handle="s"></div>
+                <div class="crop-handle handle-sw" data-handle="sw"></div>
+                <div class="crop-handle handle-w"  data-handle="w"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="editor-sidebar">
+
+        <div class="side-group">
+          <h4>Recorte</h4>
+          <div class="chip-row" id="imgAspectRow">
+            <button class="chip active" data-ratio="free">Libre</button>
+            <button class="chip" data-ratio="1:1">1:1</button>
+            <button class="chip" data-ratio="4:3">4:3</button>
+            <button class="chip" data-ratio="16:9">16:9</button>
+            <button class="chip" data-ratio="9:16">9:16</button>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <h4>Transformar</h4>
+          <div class="btn-row">
+            <button class="btn btn-tool" id="imgRotateLeft" title="Girar izquierda">⟲</button>
+            <button class="btn btn-tool" id="imgRotateRight" title="Girar derecha">⟳</button>
+            <button class="btn btn-tool" id="imgFlipH" title="Voltear horizontal">⇋</button>
+            <button class="btn btn-tool" id="imgFlipV" title="Voltear vertical">⇵</button>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <h4>Filtros predefinidos</h4>
+          <div class="chip-row" id="imgPresetRow">
+            <button class="chip active" data-preset="none">Ninguno</button>
+            <button class="chip" data-preset="bw">B/N</button>
+            <button class="chip" data-preset="sepia">Sepia</button>
+            <button class="chip" data-preset="vintage">Vintage</button>
+            <button class="chip" data-preset="cold">Frío</button>
+            <button class="chip" data-preset="warm">Cálido</button>
+            <button class="chip" data-preset="vivid">Vívido</button>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <h4>Ajustes</h4>
+          <label class="slider-row">Brillo <input type="range" id="imgBrightness" min="0" max="200" value="100"><span id="imgBrightnessVal">100%</span></label>
+          <label class="slider-row">Contraste <input type="range" id="imgContrast" min="0" max="200" value="100"><span id="imgContrastVal">100%</span></label>
+          <label class="slider-row">Saturación <input type="range" id="imgSaturate" min="0" max="200" value="100"><span id="imgSaturateVal">100%</span></label>
+          <label class="slider-row">Desenfoque <input type="range" id="imgBlur" min="0" max="20" value="0"><span id="imgBlurVal">0px</span></label>
+        </div>
+
+        <div class="side-group actions-group">
+          <button class="btn btn-ghost" id="imgResetBtn">Restablecer todo</button>
+          <button class="btn btn-primary" id="imgDownloadBtn">⬇ Descargar foto</button>
+          <button class="btn btn-secondary" id="imgSaveGalleryBtn">Guardar en galería</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Video editor modal ===== -->
+<div class="modal-overlay" id="videoEditorModal" hidden>
+  <div class="modal modal-editor">
+    <div class="modal-header">
+      <h3>Editar vídeo</h3>
+      <button class="icon-btn" id="videoEditorClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-stage">
+        <div class="stage-wrap" id="vidStageWrap">
+          <div class="frame" id="vidFrame">
+            <video id="vidPreview" playsinline muted></video>
+            <div class="crop-overlay" id="vidCropOverlay">
+              <div class="crop-rect" id="vidCropRect">
+                <div class="crop-grid"></div>
+                <div class="crop-handle handle-nw" data-handle="nw"></div>
+                <div class="crop-handle handle-n"  data-handle="n"></div>
+                <div class="crop-handle handle-ne" data-handle="ne"></div>
+                <div class="crop-handle handle-e"  data-handle="e"></div>
+                <div class="crop-handle handle-se" data-handle="se"></div>
+                <div class="crop-handle handle-s"  data-handle="s"></div>
+                <div class="crop-handle handle-sw" data-handle="sw"></div>
+                <div class="crop-handle handle-w"  data-handle="w"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="video-controls">
+          <button class="icon-btn" id="vidPlayBtn">▶</button>
+          <span class="time-label" id="vidTimeLabel">0:00 / 0:00</span>
+        </div>
+
+        <div class="trim-track" id="vidTrimTrack">
+          <div class="trim-fill" id="vidTrimFill"></div>
+          <div class="trim-handle trim-start" id="vidTrimStart"></div>
+          <div class="trim-handle trim-end" id="vidTrimEnd"></div>
+          <div class="trim-playhead" id="vidPlayhead"></div>
+        </div>
+        <div class="trim-labels">
+          <span id="vidStartLabel">0:00</span>
+          <span id="vidDurationLabel">Duración seleccionada: 0:00</span>
+          <span id="vidEndLabel">0:00</span>
+        </div>
+
+        <div class="progress-wrap" id="vidProgressWrap" hidden>
+          <div class="progress-bar"><div class="progress-fill" id="vidProgressFill"></div></div>
+          <span id="vidProgressLabel">Procesando… 0%</span>
+        </div>
+        <div class="result-wrap" id="vidResultWrap" hidden>
+          <h4>Resultado</h4>
+          <video id="vidResultPreview" controls></video>
+        </div>
+      </div>
+
+      <aside class="editor-sidebar">
+        <div class="side-group">
+          <h4>Recorte de encuadre</h4>
+          <label class="check-row"><input type="checkbox" id="vidCropEnable"> Activar recorte de imagen</label>
+          <div class="chip-row" id="vidAspectRow">
+            <button class="chip active" data-ratio="free">Libre</button>
+            <button class="chip" data-ratio="1:1">1:1</button>
+            <button class="chip" data-ratio="4:3">4:3</button>
+            <button class="chip" data-ratio="16:9">16:9</button>
+            <button class="chip" data-ratio="9:16">9:16</button>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <h4>Filtros predefinidos</h4>
+          <div class="chip-row" id="vidPresetRow">
+            <button class="chip active" data-preset="none">Ninguno</button>
+            <button class="chip" data-preset="bw">B/N</button>
+            <button class="chip" data-preset="sepia">Sepia</button>
+            <button class="chip" data-preset="vintage">Vintage</button>
+            <button class="chip" data-preset="cold">Frío</button>
+            <button class="chip" data-preset="warm">Cálido</button>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <h4>Ajustes</h4>
+          <label class="slider-row">Brillo <input type="range" id="vidBrightness" min="-50" max="50" value="0"><span id="vidBrightnessVal">0</span></label>
+          <label class="slider-row">Contraste <input type="range" id="vidContrast" min="0" max="200" value="100"><span id="vidContrastVal">100%</span></label>
+          <label class="slider-row">Saturación <input type="range" id="vidSaturate" min="0" max="300" value="100"><span id="vidSaturateVal">100%</span></label>
+          <label class="slider-row">Velocidad <input type="range" id="vidSpeed" min="50" max="200" value="100"><span id="vidSpeedVal">1×</span></label>
+        </div>
+
+        <div class="side-group actions-group">
+          <button class="btn btn-ghost" id="vidResetBtn">Restablecer todo</button>
+          <button class="btn btn-primary" id="vidProcessBtn">⚙ Procesar vídeo</button>
+          <button class="btn btn-secondary" id="vidDownloadBtn" disabled>⬇ Descargar vídeo</button>
+          <button class="btn btn-secondary" id="vidSaveGalleryBtn" disabled>Guardar en galería</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Collage builder modal ===== -->
+<div class="modal-overlay" id="collageModal" hidden>
+  <div class="modal modal-editor">
+    <div class="modal-header">
+      <h3>Crear collage de fotos</h3>
+      <button class="icon-btn" id="collageClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-stage">
+        <div class="stage-wrap" id="collageStageWrap">
+          <canvas id="collageCanvas"></canvas>
+        </div>
+        <p class="hint">Haz clic en dos huecos para intercambiar sus fotos.</p>
+      </div>
+      <aside class="editor-sidebar">
+        <div class="side-group">
+          <h4>Diseño</h4>
+          <div class="chip-row" id="collageLayoutRow"></div>
+        </div>
+        <div class="side-group">
+          <h4>Estilo</h4>
+          <label class="slider-row">Separación <input type="range" id="collageGap" min="0" max="40" value="8"><span id="collageGapVal">8px</span></label>
+          <label class="slider-row">Esquinas <input type="range" id="collageRadius" min="0" max="40" value="0"><span id="collageRadiusVal">0px</span></label>
+          <label class="slider-row">Fondo <input type="color" id="collageBg" value="#ffffff"></label>
+        </div>
+        <div class="side-group actions-group">
+          <button class="btn btn-primary" id="collageDownloadBtn">⬇ Descargar collage</button>
+          <button class="btn btn-secondary" id="collageSaveGalleryBtn">Guardar en galería</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Merge videos modal ===== -->
+<div class="modal-overlay" id="mergeModal" hidden>
+  <div class="modal modal-editor">
+    <div class="modal-header">
+      <h3>Unir vídeos</h3>
+      <button class="icon-btn" id="mergeClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-stage">
+        <ol class="merge-list" id="mergeList"></ol>
+        <div class="progress-wrap" id="mergeProgressWrap" hidden>
+          <div class="progress-bar"><div class="progress-fill" id="mergeProgressFill"></div></div>
+          <span id="mergeProgressLabel">Procesando… 0%</span>
+        </div>
+        <div class="result-wrap" id="mergeResultWrap" hidden>
+          <h4>Resultado</h4>
+          <video id="mergeResultPreview" controls></video>
+        </div>
+      </div>
+      <aside class="editor-sidebar">
+        <div class="side-group">
+          <h4>Orden</h4>
+          <p class="hint">Usa las flechas para reordenar los clips antes de unirlos.</p>
+        </div>
+        <div class="side-group">
+          <h4>Salida</h4>
+          <label class="check-row"><input type="checkbox" id="mergeGrayscale"> Blanco y negro</label>
+          <label class="slider-row">Resolución
+            <select id="mergeResolution">
+              <option value="1920x1080">1080p</option>
+              <option value="1280x720" selected>720p</option>
+              <option value="854x480">480p</option>
+            </select>
+          </label>
+        </div>
+        <div class="side-group actions-group">
+          <button class="btn btn-primary" id="mergeProcessBtn">🎬 Unir vídeos</button>
+          <button class="btn btn-secondary" id="mergeDownloadBtn" disabled>⬇ Descargar</button>
+          <button class="btn btn-secondary" id="mergeSaveGalleryBtn" disabled>Guardar en galería</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
