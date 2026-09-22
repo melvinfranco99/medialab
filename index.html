@@ -88,13 +88,36 @@
         </div>
 
         <div class="side-group stage-controls">
-          <h4>Recorte</h4>
-          <div class="chip-row" id="imgAspectRow">
-            <button class="chip active" data-ratio="free">Libre</button>
-            <button class="chip" data-ratio="1:1">1:1</button>
-            <button class="chip" data-ratio="4:3">4:3</button>
-            <button class="chip" data-ratio="16:9">16:9</button>
-            <button class="chip" data-ratio="9:16">9:16</button>
+          <h4>Herramienta</h4>
+          <div class="chip-row" id="imgToolRow">
+            <button class="chip active" data-tool="crop">✂ Recortar</button>
+            <button class="chip" data-tool="draw">✏ Dibujar</button>
+            <button class="chip" data-tool="text">🔤 Texto</button>
+          </div>
+
+          <div id="imgCropTools">
+            <div class="chip-row" id="imgAspectRow">
+              <button class="chip active" data-ratio="free">Libre</button>
+              <button class="chip" data-ratio="1:1">1:1</button>
+              <button class="chip" data-ratio="4:3">4:3</button>
+              <button class="chip" data-ratio="16:9">16:9</button>
+              <button class="chip" data-ratio="9:16">9:16</button>
+            </div>
+          </div>
+
+          <div id="imgDrawTools" hidden>
+            <label class="slider-row">Grosor <input type="range" id="imgBrushSize" min="2" max="60" value="10"><span id="imgBrushSizeVal">10px</span></label>
+            <label class="slider-row">Color <input type="color" id="imgBrushColor" value="#ff3b30"></label>
+            <div class="btn-row">
+              <button class="btn btn-tool" id="imgEraserToggle" title="Borrador">🧽 Borrador</button>
+              <button class="btn btn-tool" id="imgClearDrawing" title="Borrar dibujo">🗑 Borrar</button>
+            </div>
+          </div>
+
+          <div id="imgTextTools" hidden>
+            <label class="slider-row">Tamaño <input type="range" id="imgTextSize" min="12" max="160" value="48"><span id="imgTextSizeVal">48px</span></label>
+            <label class="slider-row">Color <input type="color" id="imgTextColor" value="#ffffff"></label>
+            <p class="hint">Toca la imagen donde quieras escribir.</p>
           </div>
         </div>
       </div>
@@ -153,6 +176,7 @@
         <div class="stage-wrap" id="vidStageWrap">
           <div class="frame" id="vidFrame">
             <video id="vidPreview" playsinline muted></video>
+            <canvas id="vidAnnotateCanvas" class="annotate-canvas" hidden></canvas>
             <div class="crop-overlay" id="vidCropOverlay">
               <div class="crop-rect" id="vidCropRect">
                 <div class="crop-grid"></div>
@@ -198,6 +222,30 @@
             <span id="vidStartLabel">0:00</span>
             <span id="vidDurationLabel">Duración seleccionada: 0:00</span>
             <span id="vidEndLabel">0:00</span>
+          </div>
+        </div>
+
+        <div class="side-group stage-controls">
+          <h4>Anotaciones (texto y dibujo)</h4>
+          <ul class="annotation-list" id="vidAnnotateList"></ul>
+          <button class="btn btn-secondary btn-full" id="vidAddAnnotationBtn">✏ Añadir anotación en el momento actual</button>
+
+          <div id="vidAnnotateEditor" hidden>
+            <div class="chip-row" id="vidAnnotateToolRow">
+              <button class="chip active" data-tool="draw">✏ Dibujar</button>
+              <button class="chip" data-tool="text">🔤 Texto</button>
+            </div>
+            <label class="slider-row">Grosor <input type="range" id="vidAnnotateBrushSize" min="2" max="60" value="10"><span id="vidAnnotateBrushSizeVal">10px</span></label>
+            <label class="slider-row">Color <input type="color" id="vidAnnotateColor" value="#ff3b30"></label>
+            <button class="btn btn-tool btn-full" id="vidAnnotateClear">🗑 Borrar trazo</button>
+            <div class="field-row">
+              <label>Inicio (s)<input type="number" id="vidAnnotateStart" min="0" step="0.1"></label>
+              <label>Fin (s)<input type="number" id="vidAnnotateEnd" min="0" step="0.1"></label>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="vidAnnotateSave">Guardar anotación</button>
+              <button class="btn btn-ghost" id="vidAnnotateCancel">Cancelar</button>
+            </div>
           </div>
         </div>
 
@@ -252,20 +300,37 @@
     </div>
     <div class="editor-body">
       <div class="editor-stage">
-        <div class="stage-wrap" id="collageStageWrap">
-          <canvas id="collageCanvas"></canvas>
+        <div class="side-group stage-controls">
+          <h4>Tamaño de lienzo</h4>
+          <div class="chip-row" id="collageSizeRow">
+            <button class="chip active" data-size="square">Cuadrado</button>
+            <button class="chip" data-size="portrait">Vertical</button>
+            <button class="chip" data-size="landscape">Horizontal</button>
+          </div>
         </div>
-        <p class="hint">Haz clic en dos huecos para intercambiar sus fotos.</p>
+
+        <div class="stage-wrap fc-stage-wrap" id="collageStageWrap">
+          <div class="fc-viewport" id="fcViewport">
+            <div class="fc-canvas" id="fcCanvas"></div>
+          </div>
+        </div>
+        <p class="hint">Arrastra una foto para moverla, tira de la esquina para escalarla y del tirador superior para rotarla. Tócala para seleccionarla.</p>
+
+        <div class="side-group stage-controls" id="fcLayerPanel" hidden>
+          <h4>Foto seleccionada</h4>
+          <div class="btn-row">
+            <button class="btn btn-tool" id="fcFront" title="Traer al frente">⬆ Frente</button>
+            <button class="btn btn-tool" id="fcForward" title="Adelante">▲</button>
+            <button class="btn btn-tool" id="fcBackward" title="Atrás">▼</button>
+            <button class="btn btn-tool" id="fcBack" title="Enviar al fondo">⬇ Fondo</button>
+          </div>
+          <button class="btn btn-danger-ghost btn-full btn-spaced" id="fcDeleteLayer">🗑 Eliminar esta foto del collage</button>
+        </div>
       </div>
       <aside class="editor-sidebar">
         <div class="side-group">
-          <h4>Diseño</h4>
-          <div class="chip-row" id="collageLayoutRow"></div>
-        </div>
-        <div class="side-group">
           <h4>Estilo</h4>
-          <label class="slider-row">Separación <input type="range" id="collageGap" min="0" max="40" value="8"><span id="collageGapVal">8px</span></label>
-          <label class="slider-row">Esquinas <input type="range" id="collageRadius" min="0" max="40" value="0"><span id="collageRadiusVal">0px</span></label>
+          <label class="slider-row">Esquinas <input type="range" id="collageRadius" min="0" max="80" value="0"><span id="collageRadiusVal">0px</span></label>
           <label class="slider-row">Fondo <input type="color" id="collageBg" value="#ffffff"></label>
         </div>
         <div class="side-group actions-group">

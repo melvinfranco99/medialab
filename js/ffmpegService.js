@@ -135,31 +135,72 @@ async function cleanup(ffmpeg, names) {
 }
 
 /**
- * Trim, crop and filter a single video.
+ * Trim, crop, filter and annotate a single video.
  * crop: {x,y,w,h} in source pixel coordinates, or null.
+ * annotations: [{ blob: PNG Blob at source resolution, start, end }], times relative to the
+ *   trimmed clip (0 = trim start) — matches the -ss/-to input seek below, which rebases PTS to 0.
  */
-export async function processVideo({ file, start, end, crop, brightness, contrast, saturate, preset, speed = 100, onProgress }) {
+export async function processVideo({ file, start, end, crop, brightness, contrast, saturate, preset, speed = 100, annotations = [], onProgress }) {
   const ffmpeg = await getFFmpeg(onProgress);
   const inputName = `in_${Date.now()}${extOf(file)}`;
   const outputName = `out_${Date.now()}.mp4`;
+  const tempFiles = [inputName, outputName];
 
   await ffmpeg.writeFile(inputName, await fetchFileFn(file));
 
-  const chain = buildVideoFilterChain({ crop, brightness, contrast, saturate, preset });
   const speedFactor = speed / 100;
   const speedChanged = Math.abs(speedFactor - 1) > 0.001;
-  if (speedChanged) chain.push(`setpts=PTS/${speedFactor.toFixed(3)}`);
 
-  const args = ['-i', inputName];
+  // -ss/-to as INPUT options (before -i) do a fast seek and rebase PTS to 0 at the trim
+  // point — required so annotation enable='between(t,...)' windows line up correctly.
+  const args = [];
   if (start != null) args.push('-ss', start.toFixed(3));
   if (end != null) args.push('-to', end.toFixed(3));
-  if (chain.length) args.push('-vf', chain.join(','));
-  if (speedChanged) args.push('-af', `atempo=${clampAtempo(speedFactor)}`);
-  args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', outputName);
+  args.push('-i', inputName);
+
+  if (annotations.length === 0) {
+    const chain = buildVideoFilterChain({ crop, brightness, contrast, saturate, preset });
+    if (speedChanged) chain.push(`setpts=PTS/${speedFactor.toFixed(3)}`);
+    if (chain.length) args.push('-vf', chain.join(','));
+    if (speedChanged) args.push('-af', `atempo=${clampAtempo(speedFactor)}`);
+    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', outputName);
+  } else {
+    // A looped still image is an infinite stream by design. Without an explicit -t, once
+    // the (finite) main video ends, overlay's default eof_action="repeat" just keeps
+    // freezing its last frame and compositing forever — ffmpeg never stops on its own
+    // (confirmed: it ran to 19 real minutes of output for a 1.3s clip). Capping each
+    // annotation input at the exact trimmed clip length fixes that at the source.
+    const clipDuration = Math.max(0.1, (end ?? 0) - (start ?? 0)).toFixed(3);
+    const annotationNames = [];
+    for (let i = 0; i < annotations.length; i++) {
+      const name = `ann_${Date.now()}_${i}.png`;
+      await ffmpeg.writeFile(name, await fetchFileFn(annotations[i].blob));
+      annotationNames.push(name);
+      args.push('-loop', '1', '-t', clipDuration, '-i', name);
+    }
+    tempFiles.push(...annotationNames);
+
+    const parts = [];
+    let label = '0:v';
+    annotations.forEach((ann, i) => {
+      const next = `ov${i}`;
+      parts.push(`[${label}][${i + 1}:v]overlay=0:0:enable='between(t,${ann.start.toFixed(3)},${ann.end.toFixed(3)})'[${next}]`);
+      label = next;
+    });
+    const colorChain = buildVideoFilterChain({ crop, brightness, contrast, saturate, preset });
+    if (speedChanged) colorChain.push(`setpts=PTS/${speedFactor.toFixed(3)}`);
+    if (colorChain.length) {
+      parts.push(`[${label}]${colorChain.join(',')}[vout]`);
+      label = 'vout';
+    }
+    args.push('-filter_complex', parts.join(';'), '-map', `[${label}]`, '-map', '0:a?');
+    if (speedChanged) args.push('-af', `atempo=${clampAtempo(speedFactor)}`);
+    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', '-shortest', outputName);
+  }
 
   await execOrReset(ffmpeg, args);
   const data = await ffmpeg.readFile(outputName);
-  await cleanup(ffmpeg, [inputName, outputName]);
+  await cleanup(ffmpeg, tempFiles);
   return new Blob([data.buffer], { type: 'video/mp4' });
 }
 

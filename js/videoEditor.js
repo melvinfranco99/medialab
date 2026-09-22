@@ -1,7 +1,7 @@
 import { CropOverlay } from './cropOverlay.js';
 import { CSS_PRESETS } from './filterPresets.js';
 import { processVideo } from './ffmpegService.js';
-import { clamp, formatTime, downloadBlob, parseRatio, showToast } from './utils.js';
+import { uid, clamp, formatTime, downloadBlob, parseRatio, showToast } from './utils.js';
 
 export class VideoEditor {
   constructor({ onSaveToGallery }) {
@@ -29,7 +29,14 @@ export class VideoEditor {
     });
     this.crop.setEnabled(false);
 
+    this.annotateCanvas = document.getElementById('vidAnnotateCanvas');
+    this.annotations = [];
+    this.annotating = false;
+    this.annotateState = { tool: 'draw', color: '#ff3b30', brushSize: 10 };
+
     this._bindUI();
+    this._bindAnnotateUI();
+    this._bindAnnotateDrawing();
     this._raf = null;
   }
 
@@ -52,6 +59,9 @@ export class VideoEditor {
     this.crop.setEnabled(false);
     this.crop.ratio = null;
     this.crop.reset();
+    this.annotations = [];
+    this._renderAnnotationList();
+    this._closeAnnotationEditor();
     this._syncControls();
     this._renderTrack();
     this._applyLiveFilter();
@@ -191,9 +201,12 @@ export class VideoEditor {
     document.getElementById('vidResetBtn').addEventListener('click', () => {
       this.state = { brightness: 0, contrast: 100, saturate: 100, preset: 'none', speed: 100 };
       document.getElementById('vidCropEnable').checked = false;
+      this._closeAnnotationEditor();
       this.crop.setEnabled(false);
       this.crop.ratio = null;
       this.crop.reset();
+      this.annotations = [];
+      this._renderAnnotationList();
       this._syncControls();
       this._applyLiveFilter();
     });
@@ -211,6 +224,141 @@ export class VideoEditor {
         showToast('Guardado en la galería');
       }
     });
+  }
+
+  _renderAnnotationList() {
+    const list = document.getElementById('vidAnnotateList');
+    list.innerHTML = '';
+    this.annotations.forEach((ann) => {
+      const li = document.createElement('li');
+      li.className = 'annotation-item';
+      const span = document.createElement('span');
+      span.textContent = `${formatTime(ann.start)} – ${formatTime(ann.end)}`;
+      const del = document.createElement('button');
+      del.textContent = '🗑';
+      del.title = 'Eliminar anotación';
+      del.addEventListener('click', () => {
+        this.annotations = this.annotations.filter((a) => a.id !== ann.id);
+        this._renderAnnotationList();
+      });
+      li.appendChild(span);
+      li.appendChild(del);
+      list.appendChild(li);
+    });
+  }
+
+  _openAnnotationEditor() {
+    this.video.pause();
+    this.annotating = true;
+    this.annotateCanvas.width = this.video.videoWidth;
+    this.annotateCanvas.height = this.video.videoHeight;
+    this.annotateCanvas.hidden = false;
+    this.crop.setEnabled(false);
+    document.getElementById('vidAnnotateEditor').hidden = false;
+
+    const selDuration = this.trimEnd - this.trimStart;
+    const rel = clamp(this.video.currentTime - this.trimStart, 0, selDuration);
+    const startInput = document.getElementById('vidAnnotateStart');
+    const endInput = document.getElementById('vidAnnotateEnd');
+    startInput.value = rel.toFixed(1);
+    endInput.value = clamp(rel + 2, rel + 0.1, selDuration).toFixed(1);
+    startInput.max = selDuration.toFixed(1);
+    endInput.max = selDuration.toFixed(1);
+  }
+
+  _closeAnnotationEditor() {
+    this.annotating = false;
+    this.annotateCanvas.hidden = true;
+    document.getElementById('vidAnnotateEditor').hidden = true;
+    this.crop.setEnabled(document.getElementById('vidCropEnable').checked);
+  }
+
+  _saveAnnotation() {
+    const selDuration = this.trimEnd - this.trimStart;
+    let start = clamp(parseFloat(document.getElementById('vidAnnotateStart').value) || 0, 0, selDuration);
+    let end = clamp(parseFloat(document.getElementById('vidAnnotateEnd').value) || 0, 0, selDuration);
+    if (end <= start) end = clamp(start + 0.1, 0.1, selDuration);
+    this.annotateCanvas.toBlob((blob) => {
+      if (!blob) return;
+      this.annotations.push({ id: uid(), blob, start, end });
+      this._renderAnnotationList();
+      this._closeAnnotationEditor();
+      showToast('Anotación añadida');
+    }, 'image/png');
+  }
+
+  _bindAnnotateUI() {
+    document.getElementById('vidAddAnnotationBtn').addEventListener('click', () => this._openAnnotationEditor());
+    document.getElementById('vidAnnotateCancel').addEventListener('click', () => this._closeAnnotationEditor());
+    document.getElementById('vidAnnotateSave').addEventListener('click', () => this._saveAnnotation());
+    document.getElementById('vidAnnotateClear').addEventListener('click', () => {
+      this.annotateCanvas.getContext('2d').clearRect(0, 0, this.annotateCanvas.width, this.annotateCanvas.height);
+    });
+    document.getElementById('vidAnnotateToolRow').addEventListener('click', (e) => {
+      const btn = e.target.closest('.chip');
+      if (!btn) return;
+      this.annotateState.tool = btn.dataset.tool;
+      document.querySelectorAll('#vidAnnotateToolRow .chip').forEach((c) => c.classList.remove('active'));
+      btn.classList.add('active');
+    });
+    document.getElementById('vidAnnotateBrushSize').addEventListener('input', (e) => {
+      this.annotateState.brushSize = Number(e.target.value);
+      document.getElementById('vidAnnotateBrushSizeVal').textContent = `${e.target.value}px`;
+    });
+    document.getElementById('vidAnnotateColor').addEventListener('input', (e) => {
+      this.annotateState.color = e.target.value;
+    });
+  }
+
+  _bindAnnotateDrawing() {
+    let drawing = false;
+    let last = null;
+    const getPoint = (e) => {
+      const rect = this.annotateCanvas.getBoundingClientRect();
+      const scaleX = this.annotateCanvas.width / rect.width;
+      const scaleY = this.annotateCanvas.height / rect.height;
+      return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY, scaleX };
+    };
+
+    this.annotateCanvas.addEventListener('pointerdown', (e) => {
+      if (!this.annotating) return;
+      e.preventDefault();
+      const p = getPoint(e);
+      if (this.annotateState.tool === 'text') {
+        const text = window.prompt('Escribe el texto:');
+        if (text) {
+          const ctx = this.annotateCanvas.getContext('2d');
+          ctx.font = `bold ${this.annotateState.brushSize * 3}px sans-serif`;
+          ctx.fillStyle = this.annotateState.color;
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, p.x, p.y);
+        }
+        return;
+      }
+      drawing = true;
+      last = p;
+      this.annotateCanvas.setPointerCapture(e.pointerId);
+    });
+
+    this.annotateCanvas.addEventListener('pointermove', (e) => {
+      if (!drawing || !this.annotating || this.annotateState.tool !== 'draw') return;
+      const p = getPoint(e);
+      const ctx = this.annotateCanvas.getContext('2d');
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = this.annotateState.color;
+      ctx.lineWidth = this.annotateState.brushSize * p.scaleX;
+      ctx.beginPath();
+      ctx.moveTo(last.x, last.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      last = p;
+    });
+
+    const stop = () => { drawing = false; last = null; };
+    this.annotateCanvas.addEventListener('pointerup', stop);
+    this.annotateCanvas.addEventListener('pointercancel', stop);
+    this.annotateCanvas.addEventListener('pointerleave', stop);
   }
 
   async _process() {
@@ -245,6 +393,7 @@ export class VideoEditor {
         saturate: this.state.saturate,
         preset: this.state.preset,
         speed: this.state.speed,
+        annotations: this.annotations,
         onProgress: (pct) => {
           progressFill.style.width = `${pct}%`;
           progressLabel.textContent = `Procesando… ${pct}%`;

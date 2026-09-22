@@ -8,6 +8,7 @@ export class MergeBuilder {
     this.listEl = document.getElementById('mergeList');
     this.items = [];
     this.resultBlob = null;
+    this.draggingId = null;
     this._bindUI();
   }
 
@@ -34,6 +35,15 @@ export class MergeBuilder {
     this.items.forEach((item, i) => {
       const li = document.createElement('li');
       li.className = 'merge-item';
+      li.dataset.id = item.id;
+      if (item.id === this.draggingId) li.classList.add('dragging-placeholder');
+
+      const handle = document.createElement('span');
+      handle.className = 'merge-drag-handle';
+      handle.textContent = '⠿';
+      handle.title = 'Arrastrar para reordenar';
+      handle.addEventListener('pointerdown', (e) => this._startDrag(e, item));
+
       const video = document.createElement('video');
       video.src = item.url;
       video.muted = true;
@@ -52,6 +62,7 @@ export class MergeBuilder {
       down.addEventListener('click', () => this._move(i, 1));
       order.appendChild(up);
       order.appendChild(down);
+      li.appendChild(handle);
       li.appendChild(video);
       li.appendChild(name);
       li.appendChild(order);
@@ -64,6 +75,53 @@ export class MergeBuilder {
     if (target < 0 || target >= this.items.length) return;
     [this.items[index], this.items[target]] = [this.items[target], this.items[index]];
     this._renderList();
+  }
+
+  /** Pointer-based drag-and-drop reorder (works with touch too, unlike native HTML5 DnD). */
+  _startDrag(e, item) {
+    e.preventDefault();
+    const li = this.listEl.querySelector(`[data-id="${item.id}"]`);
+    if (!li) return;
+    const rect = li.getBoundingClientRect();
+    const grabOffsetY = e.clientY - rect.top;
+
+    this.draggingId = item.id;
+    const clone = li.cloneNode(true);
+    clone.classList.add('merge-item-clone');
+    clone.style.width = `${rect.width}px`;
+    clone.style.left = `${rect.left}px`;
+    clone.style.top = `${rect.top}px`;
+    document.body.appendChild(clone);
+    this._renderList();
+
+    const move = (ev) => {
+      clone.style.top = `${ev.clientY - grabOffsetY}px`;
+      const others = [...this.listEl.querySelectorAll('.merge-item:not(.dragging-placeholder)')];
+      let targetIndex = this.items.length - 1;
+      for (let k = 0; k < others.length; k++) {
+        const r = others[k].getBoundingClientRect();
+        if (ev.clientY < r.top + r.height / 2) {
+          const id = others[k].dataset.id;
+          targetIndex = this.items.findIndex((it) => it.id === id);
+          break;
+        }
+      }
+      const currentIndex = this.items.findIndex((it) => it.id === item.id);
+      if (targetIndex !== currentIndex) {
+        const [moved] = this.items.splice(currentIndex, 1);
+        this.items.splice(targetIndex, 0, moved);
+        this._renderList();
+      }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      clone.remove();
+      this.draggingId = null;
+      this._renderList();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   }
 
   _bindUI() {

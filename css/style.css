@@ -153,7 +153,10 @@ body {
   background: var(--surface-2); color: var(--text); flex: 1;
   font-size: 1.1rem; padding: 10px;
 }
+.btn-tool.active { background: var(--primary); color: var(--primary-contrast); }
 .btn-row { display: flex; gap: 8px; }
+.btn-full { width: 100%; }
+.btn-spaced { margin-top: 8px; }
 
 /* ---------- Library ---------- */
 .library-panel { margin-top: 24px; padding: 20px; }
@@ -274,6 +277,8 @@ body {
 }
 .frame { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
 .frame canvas, .frame video, .frame img { max-width: 100%; max-height: 55vh; display: block; }
+.frame canvas.tool-draw { cursor: crosshair; touch-action: none; }
+.frame canvas.tool-text { cursor: text; }
 
 /* ---------- Crop overlay ---------- */
 .crop-overlay { position: absolute; inset: 0; pointer-events: none; }
@@ -306,6 +311,8 @@ body {
 
 /* Bigger touch targets on touch screens — a 14px handle is too small to grab with a finger. */
 @media (pointer: coarse) {
+  .fc-layer-handle { width: 34px; height: 34px; margin: -17px; }
+  .merge-drag-handle { font-size: 1.6rem; padding: 8px; }
   .crop-handle { width: 26px; height: 26px; border-radius: 6px; }
   .handle-nw { top: -14px; left: -14px; }
   .handle-n  { top: -14px; left: calc(50% - 13px); }
@@ -338,7 +345,27 @@ body {
 .slider-row span { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
 .check-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; margin-bottom: 12px; font-weight: 500; }
 .check-row input { accent-color: var(--primary); width: 16px; height: 16px; }
+.field-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.field-row label { flex: 1; font-size: 0.78rem; color: var(--text-dim); font-weight: 600; }
+.field-row input[type="number"] {
+  width: 100%; margin-top: 4px; padding: 8px; border-radius: 6px; font-size: 0.9rem;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: var(--font);
+}
 select { font-family: var(--font); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+
+.annotate-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.annotate-canvas[hidden] { display: none; }
+.annotation-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.annotation-item {
+  display: flex; align-items: center; gap: 8px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 0.78rem;
+}
+.annotation-item span { flex: 1; font-weight: 600; }
+.annotation-item button {
+  border: none; background: transparent; color: var(--danger); cursor: pointer; font-size: 0.95rem;
+  width: 26px; height: 26px; border-radius: 50%;
+}
+.annotation-item button:hover { background: var(--danger-bg); }
 
 /* ---------- Video controls ---------- */
 .video-controls { display: flex; align-items: center; gap: 12px; }
@@ -372,6 +399,34 @@ select { font-family: var(--font); padding: 6px 8px; border-radius: 6px; border:
 .result-wrap video { width: 100%; border-radius: var(--radius-sm); max-height: 40vh; }
 .result-wrap h4 { margin: 4px 0; font-size: 0.85rem; color: var(--text-dim); }
 
+/* ---------- Free-form collage canvas ---------- */
+.fc-viewport {
+  position: relative; overflow: hidden; background: #fff;
+  box-shadow: 0 0 0 1px var(--border); flex-shrink: 0;
+}
+.fc-canvas { position: relative; transform-origin: top left; }
+.fc-layer {
+  position: absolute; touch-action: none; cursor: move;
+  outline: 2px solid transparent; outline-offset: 2px;
+}
+.fc-layer-imgwrap { position: absolute; inset: 0; overflow: hidden; }
+.fc-layer img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; user-select: none; }
+.fc-layer.selected { outline-color: var(--primary); z-index: 9999 !important; }
+.fc-layer-handle {
+  position: absolute; width: 26px; height: 26px; margin: -13px;
+  background: #fff; border: 2px solid var(--primary); border-radius: 50%;
+  touch-action: none; display: none;
+}
+.fc-layer.selected .fc-layer-handle { display: block; }
+.fc-resize-handle { right: 0; bottom: 0; cursor: nwse-resize; border-radius: 6px; }
+.fc-rotate-handle { left: 50%; top: -28px; cursor: grab; }
+.fc-rotate-stick {
+  position: absolute; left: 50%; top: -28px; width: 2px; height: 28px;
+  background: var(--primary); display: none; transform: translateX(-1px);
+  pointer-events: none;
+}
+.fc-layer.selected .fc-rotate-stick { display: block; }
+
 /* ---------- Merge list ---------- */
 .merge-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .merge-item {
@@ -384,6 +439,15 @@ select { font-family: var(--font); padding: 6px 8px; border-radius: 6px; border:
 .merge-item-order button {
   border: 1px solid var(--border); background: var(--surface); border-radius: 5px; cursor: pointer;
   width: 26px; height: 22px; font-size: 0.7rem; color: var(--text);
+}
+.merge-drag-handle {
+  cursor: grab; touch-action: none; color: var(--text-dim); font-size: 1.2rem;
+  padding: 4px 2px; flex-shrink: 0; line-height: 1;
+}
+.merge-item.dragging-placeholder { opacity: 0.35; }
+.merge-item-clone {
+  position: fixed; z-index: 1000; pointer-events: none; box-shadow: var(--shadow-lg);
+  opacity: 0.95; border-radius: 10px;
 }
 
 /* ---------- Toasts ---------- */
