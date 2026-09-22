@@ -56,12 +56,14 @@ export class VideoEditor {
     this._renderTrack();
     this._applyLiveFilter();
     this.modal.hidden = false;
+    document.documentElement.classList.add('modal-open');
   }
 
   close() {
     this.video.pause();
     cancelAnimationFrame(this._raf);
     this.modal.hidden = true;
+    document.documentElement.classList.remove('modal-open');
   }
 
   _syncControls() {

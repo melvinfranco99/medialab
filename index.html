@@ -86,10 +86,8 @@
             </div>
           </div>
         </div>
-      </div>
-      <aside class="editor-sidebar">
 
-        <div class="side-group">
+        <div class="side-group stage-controls">
           <h4>Recorte</h4>
           <div class="chip-row" id="imgAspectRow">
             <button class="chip active" data-ratio="free">Libre</button>
@@ -99,6 +97,8 @@
             <button class="chip" data-ratio="9:16">9:16</button>
           </div>
         </div>
+      </div>
+      <aside class="editor-sidebar">
 
         <div class="side-group">
           <h4>Transformar</h4>
@@ -169,21 +169,36 @@
           </div>
         </div>
 
+        <div class="side-group stage-controls">
+          <h4>Recorte de encuadre</h4>
+          <label class="check-row"><input type="checkbox" id="vidCropEnable"> Activar recorte de imagen</label>
+          <div class="chip-row" id="vidAspectRow">
+            <button class="chip active" data-ratio="free">Libre</button>
+            <button class="chip" data-ratio="1:1">1:1</button>
+            <button class="chip" data-ratio="4:3">4:3</button>
+            <button class="chip" data-ratio="16:9">16:9</button>
+            <button class="chip" data-ratio="9:16">9:16</button>
+          </div>
+        </div>
+
         <div class="video-controls">
           <button class="icon-btn" id="vidPlayBtn">▶</button>
           <span class="time-label" id="vidTimeLabel">0:00 / 0:00</span>
         </div>
 
-        <div class="trim-track" id="vidTrimTrack">
-          <div class="trim-fill" id="vidTrimFill"></div>
-          <div class="trim-handle trim-start" id="vidTrimStart"></div>
-          <div class="trim-handle trim-end" id="vidTrimEnd"></div>
-          <div class="trim-playhead" id="vidPlayhead"></div>
-        </div>
-        <div class="trim-labels">
-          <span id="vidStartLabel">0:00</span>
-          <span id="vidDurationLabel">Duración seleccionada: 0:00</span>
-          <span id="vidEndLabel">0:00</span>
+        <div class="side-group stage-controls">
+          <h4>Recorte por tiempo</h4>
+          <div class="trim-track" id="vidTrimTrack">
+            <div class="trim-fill" id="vidTrimFill"></div>
+            <div class="trim-handle trim-start" id="vidTrimStart"></div>
+            <div class="trim-handle trim-end" id="vidTrimEnd"></div>
+            <div class="trim-playhead" id="vidPlayhead"></div>
+          </div>
+          <div class="trim-labels">
+            <span id="vidStartLabel">0:00</span>
+            <span id="vidDurationLabel">Duración seleccionada: 0:00</span>
+            <span id="vidEndLabel">0:00</span>
+          </div>
         </div>
 
         <div class="progress-wrap" id="vidProgressWrap" hidden>
@@ -197,18 +212,6 @@
       </div>
 
       <aside class="editor-sidebar">
-        <div class="side-group">
-          <h4>Recorte de encuadre</h4>
-          <label class="check-row"><input type="checkbox" id="vidCropEnable"> Activar recorte de imagen</label>
-          <div class="chip-row" id="vidAspectRow">
-            <button class="chip active" data-ratio="free">Libre</button>
-            <button class="chip" data-ratio="1:1">1:1</button>
-            <button class="chip" data-ratio="4:3">4:3</button>
-            <button class="chip" data-ratio="16:9">16:9</button>
-            <button class="chip" data-ratio="9:16">9:16</button>
-          </div>
-        </div>
-
         <div class="side-group">
           <h4>Filtros predefinidos</h4>
           <div class="chip-row" id="vidPresetRow">

@@ -39,10 +39,12 @@ export class ImageEditor {
     this.crop.reset();
     this._render();
     this.modal.hidden = false;
+    document.documentElement.classList.add('modal-open');
   }
 
   close() {
     this.modal.hidden = true;
+    document.documentElement.classList.remove('modal-open');
   }
 
   _render() {

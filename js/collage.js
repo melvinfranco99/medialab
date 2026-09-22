@@ -54,6 +54,7 @@ export class Collage {
 
   async open(items) {
     this.modal.hidden = false;
+    document.documentElement.classList.add('modal-open');
     this.canvas.style.opacity = '0.4';
     this.images = await Promise.all(items.map(async (it) => ({ img: await loadImage(it.url), name: it.name })));
     this.canvas.style.opacity = '1';
@@ -66,6 +67,7 @@ export class Collage {
 
   close() {
     this.modal.hidden = true;
+    document.documentElement.classList.remove('modal-open');
   }
 
   _renderLayoutOptions() {

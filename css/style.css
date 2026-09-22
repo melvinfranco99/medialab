@@ -62,6 +62,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html.modal-open { overflow: hidden; }
 body {
   font-family: var(--font);
   background: var(--bg);
@@ -195,10 +196,10 @@ body {
 }
 .card-checkbox {
   position: absolute; top: 8px; right: 8px;
-  width: 22px; height: 22px; border-radius: 6px;
+  width: 26px; height: 26px; border-radius: 7px;
   background: rgba(0,0,0,0.45); border: 1.5px solid rgba(255,255,255,0.8);
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 0.8rem; font-weight: 800;
+  color: #fff; font-size: 0.85rem; font-weight: 800;
 }
 .card.selected .card-checkbox { background: var(--primary); border-color: var(--primary); }
 .card-info { padding: 9px 10px; }
@@ -207,17 +208,19 @@ body {
   overflow: hidden; text-overflow: ellipsis;
 }
 .card-meta { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+/* Always visible (not hover-only) so the edit/delete actions work on touch screens. */
 .card-actions {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  gap: 8px; background: rgba(10,10,20,0.45); opacity: 0;
-  transition: opacity .15s;
+  position: absolute; left: 8px; right: 8px; bottom: 8px;
+  display: flex; justify-content: space-between; gap: 8px;
 }
-.card:hover .card-actions { opacity: 1; }
 .card-action-btn {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: #fff; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(255,255,255,0.95); border: none; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  transition: transform .1s;
 }
+.card-action-btn:active { transform: scale(0.92); }
 .card-action-btn.danger { color: var(--danger); }
 
 /* ---------- Footer ---------- */
@@ -254,6 +257,13 @@ body {
   background: var(--surface-2);
 }
 .side-group h4 { margin: 0 0 10px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); }
+/* Crop/trim controls placed inline under the media preview (not just in the sidebar), so the
+   most important editing actions are reachable without scrolling — especially on mobile. */
+.stage-controls {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px;
+}
+.stage-controls .chip-row:last-child, .stage-controls .check-row:last-child { margin-bottom: 0; }
 .actions-group { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); }
 .actions-group .btn { width: 100%; }
 
@@ -269,7 +279,7 @@ body {
 .crop-overlay { position: absolute; inset: 0; pointer-events: none; }
 .crop-rect {
   position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
-  pointer-events: auto; cursor: move;
+  pointer-events: auto; cursor: move; touch-action: none;
 }
 .crop-overlay[hidden] { display: none; }
 .crop-grid {
@@ -283,6 +293,7 @@ body {
 .crop-handle {
   position: absolute; width: 14px; height: 14px; background: #fff;
   border: 2px solid var(--primary); border-radius: 3px; pointer-events: auto;
+  touch-action: none;
 }
 .handle-nw { top: -8px; left: -8px; cursor: nwse-resize; }
 .handle-n  { top: -8px; left: calc(50% - 7px); cursor: ns-resize; }
@@ -292,6 +303,19 @@ body {
 .handle-s  { bottom: -8px; left: calc(50% - 7px); cursor: ns-resize; }
 .handle-sw { bottom: -8px; left: -8px; cursor: nesw-resize; }
 .handle-w  { top: calc(50% - 7px); left: -8px; cursor: ew-resize; }
+
+/* Bigger touch targets on touch screens — a 14px handle is too small to grab with a finger. */
+@media (pointer: coarse) {
+  .crop-handle { width: 26px; height: 26px; border-radius: 6px; }
+  .handle-nw { top: -14px; left: -14px; }
+  .handle-n  { top: -14px; left: calc(50% - 13px); }
+  .handle-ne { top: -14px; right: -14px; }
+  .handle-e  { top: calc(50% - 13px); right: -14px; }
+  .handle-se { bottom: -14px; right: -14px; }
+  .handle-s  { bottom: -14px; left: calc(50% - 13px); }
+  .handle-sw { bottom: -14px; left: -14px; }
+  .handle-w  { top: calc(50% - 13px); left: -14px; }
+}
 
 /* ---------- Chips ---------- */
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -321,13 +345,17 @@ select { font-family: var(--font); padding: 6px 8px; border-radius: 6px; border:
 .time-label { font-size: 0.8rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 .trim-track {
-  position: relative; height: 46px; background: var(--surface-2);
+  position: relative; height: 46px; background: var(--surface);
   border-radius: 8px; border: 1px solid var(--border);
 }
 .trim-fill { position: absolute; top: 0; bottom: 0; background: var(--secondary); }
 .trim-handle {
-  position: absolute; top: -1px; bottom: -1px; width: 12px;
+  position: absolute; top: -1px; bottom: -1px; width: 16px;
   background: var(--primary); border-radius: 4px; cursor: ew-resize; z-index: 2;
+  touch-action: none;
+}
+@media (pointer: coarse) {
+  .trim-handle { width: 26px; }
 }
 .trim-playhead {
   position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--danger);
@@ -375,8 +403,27 @@ select { font-family: var(--font); padding: 6px 8px; border-radius: 6px; border:
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {
   .editor-body { flex-direction: column; overflow-y: auto; }
-  .editor-sidebar { width: auto; border-left: none; border-top: 1px solid var(--border); }
+  /* Stacked layout: let editor-body be the single scroll container. Without this, both
+     panes fighting over flex space (stage's flex:1 vs sidebar's content-based size) made
+     the sidebar overlap and swallow the crop/trim area — see stage/sidebar flex-basis bug. */
+  .editor-stage { flex: none; overflow-y: visible; }
+  .editor-sidebar { width: auto; flex: none; overflow-y: visible; border-left: none; border-top: 1px solid var(--border); }
   .modal { max-height: 96vh; }
   .stage-wrap { max-height: 40vh; }
   .frame canvas, .frame video, .frame img { max-height: 40vh; }
+}
+
+@media (max-width: 640px) {
+  .app-shell { padding: 0 16px 32px; }
+  .library-header { flex-direction: column; align-items: stretch; }
+  .library-actions { justify-content: stretch; }
+  .library-actions .btn { flex: 1 1 auto; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+
+  /* Editors take over the full screen on phones — more room, no wasted backdrop. */
+  .modal-overlay { padding: 0; align-items: stretch; }
+  .modal { max-width: 100%; max-height: 100%; height: 100%; border-radius: 0; }
+  .editor-stage, .editor-sidebar { padding: 14px; }
+  .stage-wrap { max-height: 34vh; }
+  .frame canvas, .frame video, .frame img { max-height: 34vh; }
 }
